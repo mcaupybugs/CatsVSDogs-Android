@@ -1,11 +1,14 @@
 package com.example.billiorbillu;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.view.View;
@@ -18,6 +21,8 @@ import org.tensorflow.lite.Interpreter;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
@@ -30,6 +35,7 @@ public class MainActivity extends AppCompatActivity {
     int action = 0;
     Interpreter tflite;
     Bitmap finalBitmap;
+    ByteBuffer bytebuffer_float;
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -38,7 +44,9 @@ public class MainActivity extends AppCompatActivity {
             Bundle extras = data.getExtras();
             Bitmap imageBitmap = (Bitmap) extras.get("data");
             imageView.setImageBitmap(imageBitmap);
-            finalBitmap = Bitmap.createScaledBitmap(imageBitmap, 200, 200, false);
+            finalBitmap = Bitmap.createScaledBitmap(imageBitmap,200,200,false);
+            bytebuffer_float = convertBitmapToByteBuffer_float(finalBitmap, 1,
+                    200, 3);
             button.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_done_black));
             textView.setText("Submit the image to make prediction");
             action = 1;
@@ -52,9 +60,31 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void runModel(Bitmap img) {
-        int[][] result = new int[2][2];
+    private void runModel(ByteBuffer img) {
+        float[][] result = new float[1][1];
         tflite.run(img, result);
+        action = 0;
+        textView.setText("Take a picture to predict again");
+        button.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_camera));
+        imageView.setImageDrawable(null);
+        boolean cat=false;
+        if(result[0][0]>0.5){
+            cat = true;
+        }
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+        if(cat){
+            dialog.setMessage("You look "+(int)(result[0][0]*100) +"% like a cat!!!");
+        }else{
+            dialog.setMessage("You look "+(100-(int)(result[0][0]*100)) +"% like a dog!!!");
+        }
+        dialog.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+
+            }
+        });
+        AlertDialog alertDialog = dialog.create();
+        alertDialog.show();
         System.out.println(result[0][0]);
     }
 
@@ -72,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
                 if (action == 0) {
                     dispatchTakePictureIntent();
                 } else if (action == 1) {
-                    runModel(finalBitmap);
+                    runModel(bytebuffer_float);
                 }
             }
         });
@@ -90,5 +120,27 @@ public class MainActivity extends AppCompatActivity {
         long startOffset = fileDescriptor.getStartOffset();
         long declaredLength = fileDescriptor.getDeclaredLength();
         return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
+    }
+
+    private ByteBuffer convertBitmapToByteBuffer_float(Bitmap bitmap, int
+            BATCH_SIZE, int inputSize, int PIXEL_SIZE) {
+        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4 * BATCH_SIZE *
+                inputSize * inputSize * PIXEL_SIZE); //float_size = 4 bytes
+        byteBuffer.order(ByteOrder.nativeOrder());
+        int[] intValues = new int[inputSize * inputSize];
+        bitmap.getPixels(intValues, 0, bitmap.getWidth(), 0, 0,
+                bitmap.getWidth(), bitmap.getHeight());
+        int pixel = 0;
+        for (int i = 0; i < inputSize; ++i) {
+            for (int j = 0; j < inputSize; ++j) {
+                final int val = intValues[pixel++];
+
+
+                byteBuffer.putFloat( ((val >> 16) & 0xFF)* (1.f/255.f));
+                byteBuffer.putFloat( ((val >> 8) & 0xFF)* (1.f/255.f));
+                byteBuffer.putFloat( (val & 0xFF)* (1.f/255.f));
+            }
+        }
+        return byteBuffer;
     }
 }
