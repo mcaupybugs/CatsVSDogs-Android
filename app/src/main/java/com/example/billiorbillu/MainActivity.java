@@ -67,15 +67,15 @@ public class MainActivity extends AppCompatActivity {
         textView.setText("Take a picture to predict again");
         button.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_camera));
         imageView.setImageDrawable(null);
-        boolean cat=false;
+        boolean cat=true;
         if(result[0][0]>0.5){
-            cat = true;
+            cat = false;
         }
         AlertDialog.Builder dialog = new AlertDialog.Builder(this);
         if(cat){
-            dialog.setMessage("You look "+(int)(result[0][0]*100) +"% like a cat!!!");
+            dialog.setMessage("You look "+ (100-(int)(result[0][0]*100)) +"% like a cat!!!");
         }else{
-            dialog.setMessage("You look "+(100-(int)(result[0][0]*100)) +"% like a dog!!!");
+            dialog.setMessage("You look "+(int)(result[0][0]*100) +"% like a dog!!!");
         }
         dialog.setPositiveButton("OK", new DialogInterface.OnClickListener() {
             @Override
@@ -114,7 +114,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private MappedByteBuffer loadModelFile() throws IOException {
-        AssetFileDescriptor fileDescriptor = this.getAssets().openFd("model.tflite");
+        AssetFileDescriptor fileDescriptor = this.getAssets().openFd("mobileModel.tflite");
         FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
         FileChannel fileChannel = inputStream.getChannel();
         long startOffset = fileDescriptor.getStartOffset();
